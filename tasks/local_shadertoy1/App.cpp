@@ -1,8 +1,16 @@
 #include "App.hpp"
+#include "etna/DescriptorSet.hpp"
+#include "etna/Image.hpp"
+#include "etna/Sampler.hpp"
+#include "etna/VertexInput.hpp"
 
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
+#include <iostream>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 
 App::App()
@@ -71,10 +79,33 @@ App::App()
 
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
+  auto &ctx = etna::get_context();
   commandManager = etna::get_context().createPerFrameCmdMgr();
+  {
+    etna::create_program("toy", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
+    auto& pipelineManager = etna::get_context().getPipelineManager();
 
+    etna::VertexShaderInputDescription rectangle{
 
-  // TODO: Initialize any additional resources you require here!
+    };
+    toyPipeline = {};
+    std::cerr << "Pipeline creating\n";
+    toyPipeline = pipelineManager.createComputePipeline("toy", {});
+    std::cerr << "Pipeline created\n";
+
+    std::cerr << "Image creating\n";
+    output = ctx.createImage(etna::Image::CreateInfo{
+      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .name = "output",
+      .format = vk::Format::eD32Sfloat,
+      // .imageUsage = vk::ImageUsageFlagBits::eColorAttachment
+                  // | vk::ImageUsageFlagBits::eSampled
+                  // | vk::ImageUsageFlagBits::eStorage
+    });
+    std::cerr << "Image created\n";
+
+    defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+  }
 }
 
 App::~App()
@@ -139,7 +170,25 @@ void App::drawFrame()
 
 
       // TODO: Record your commands here!
-
+      // auto toyComputeInfo = etna::get_shader_program("toy");
+      // auto set = etna::create_descriptor_set(
+      //   toyComputeInfo.getDescriptorLayoutId(0),
+      //   currentCmdBuf,
+      //   {
+      //     etna::Binding{0, output.genBinding(
+      //       defaultSampler.get(),
+      //       vk::ImageLayout::eShaderReadOnlyOptimal
+      //     )}
+      //   }
+      // );
+      // currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, toyPipeline.getVkPipeline());
+      // currentCmdBuf.bindDescriptorSets(
+      //   vk::PipelineBindPoint::eCompute,
+      //   toyPipeline.getVkPipelineLayout(),
+      //   0,
+      //   {set.getVkSet()},
+      //   {}
+      // );
 
       // At the end of "rendering", we are required to change how the pixels of the
       // swpchain image are laid out in memory to something that is appropriate
