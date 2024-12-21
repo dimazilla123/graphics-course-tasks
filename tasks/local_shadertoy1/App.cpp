@@ -4,6 +4,7 @@
 #include "etna/Sampler.hpp"
 #include "etna/VertexInput.hpp"
 
+#include <cstdint>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
@@ -97,10 +98,8 @@ App::App()
     output = ctx.createImage(etna::Image::CreateInfo{
       .extent = vk::Extent3D{resolution.x, resolution.y, 1},
       .name = "output",
-      .format = vk::Format::eD32Sfloat,
-      // .imageUsage = vk::ImageUsageFlagBits::eColorAttachment
-                  // | vk::ImageUsageFlagBits::eSampled
-                  // | vk::ImageUsageFlagBits::eStorage
+      .format = vk::Format::eR8G8B8A8Snorm,
+      .imageUsage =  vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage
     });
     std::cerr << "Image created\n";
 
@@ -170,25 +169,82 @@ void App::drawFrame()
 
 
       // TODO: Record your commands here!
-      // auto toyComputeInfo = etna::get_shader_program("toy");
-      // auto set = etna::create_descriptor_set(
-      //   toyComputeInfo.getDescriptorLayoutId(0),
-      //   currentCmdBuf,
-      //   {
-      //     etna::Binding{0, output.genBinding(
-      //       defaultSampler.get(),
-      //       vk::ImageLayout::eShaderReadOnlyOptimal
-      //     )}
-      //   }
-      // );
-      // currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, toyPipeline.getVkPipeline());
-      // currentCmdBuf.bindDescriptorSets(
-      //   vk::PipelineBindPoint::eCompute,
-      //   toyPipeline.getVkPipelineLayout(),
-      //   0,
-      //   {set.getVkSet()},
-      //   {}
-      // );
+      auto toyComputeInfo = etna::get_shader_program("toy");
+      auto set = etna::create_descriptor_set(
+        toyComputeInfo.getDescriptorLayoutId(0),
+        currentCmdBuf,
+        {
+          etna::Binding{0, output.genBinding(
+            defaultSampler.get(),
+            vk::ImageLayout::eGeneral
+          )}
+        }
+      );
+      currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, toyPipeline.getVkPipeline());
+      currentCmdBuf.bindDescriptorSets(
+        vk::PipelineBindPoint::eCompute,
+        toyPipeline.getVkPipelineLayout(),
+        0,
+        {set.getVkSet()},
+        {}
+      );
+
+      etna::set_state(
+        currentCmdBuf,
+        output.get(), 
+        vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderWrite,
+        vk::ImageLayout::eGeneral,
+        vk::ImageAspectFlagBits::eColor);
+
+      struct {
+        struct {
+          uint32_t x;
+          uint32_t y;
+        } resolution;
+      } params = {
+        { resolution.x, resolution.y }
+      };
+
+      currentCmdBuf.pushConstants(
+        toyPipeline.getVkPipelineLayout(),
+        vk::ShaderStageFlagBits::eCompute,
+        0,
+        sizeof(params),
+        &params
+      );
+
+      etna::flush_barriers(currentCmdBuf); // To ensure parameters are loaded before computation
+
+      currentCmdBuf.dispatch(resolution.x / 32, resolution.y / 32, 1);
+
+      etna::set_state(
+        currentCmdBuf,
+        output.get(),
+        vk::PipelineStageFlagBits2::eBlit,
+        vk::AccessFlagBits2::eTransferRead,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vk::ImageAspectFlagBits::eColor
+      );
+
+      etna::flush_barriers(currentCmdBuf);
+
+      vk::ImageBlit region = {
+          .srcSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+          .srcOffsets     = {{vk::Offset3D(0, 0, 0), vk::Offset3D(resolution.x, resolution.y, 1)}},
+          .dstSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+          .dstOffsets     = {{vk::Offset3D(0, 0, 0), vk::Offset3D(resolution.x, resolution.y, 1)}},
+      };
+
+        currentCmdBuf.blitImage(
+        output.get(),
+        vk::ImageLayout::eTransferSrcOptimal,
+        backbuffer,
+        vk::ImageLayout::eTransferDstOptimal,
+        1,
+        &region,
+        vk::Filter::eLinear
+      );
 
       // At the end of "rendering", we are required to change how the pixels of the
       // swpchain image are laid out in memory to something that is appropriate
