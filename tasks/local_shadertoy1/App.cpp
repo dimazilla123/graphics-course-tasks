@@ -80,7 +80,7 @@ App::App()
 
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
-  auto &ctx = etna::get_context();
+  auto& ctx = etna::get_context();
   commandManager = etna::get_context().createPerFrameCmdMgr();
   {
     etna::create_program("toy", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
@@ -99,8 +99,7 @@ App::App()
       .extent = vk::Extent3D{resolution.x, resolution.y, 1},
       .name = "output",
       .format = vk::Format::eR8G8B8A8Snorm,
-      .imageUsage =  vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage
-    });
+      .imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage});
     std::cerr << "Image created\n";
 
     defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
@@ -173,46 +172,38 @@ void App::drawFrame()
       auto set = etna::create_descriptor_set(
         toyComputeInfo.getDescriptorLayoutId(0),
         currentCmdBuf,
-        {
-          etna::Binding{0, output.genBinding(
-            defaultSampler.get(),
-            vk::ImageLayout::eGeneral
-          )}
-        }
-      );
+        {etna::Binding{0, output.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)}});
       currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, toyPipeline.getVkPipeline());
       currentCmdBuf.bindDescriptorSets(
         vk::PipelineBindPoint::eCompute,
         toyPipeline.getVkPipelineLayout(),
         0,
         {set.getVkSet()},
-        {}
-      );
+        {});
 
       etna::set_state(
         currentCmdBuf,
-        output.get(), 
+        output.get(),
         vk::PipelineStageFlagBits2::eComputeShader,
         vk::AccessFlagBits2::eShaderWrite,
         vk::ImageLayout::eGeneral,
         vk::ImageAspectFlagBits::eColor);
 
-      struct {
-        struct {
+      struct
+      {
+        struct
+        {
           uint32_t x;
           uint32_t y;
         } resolution;
-      } params = {
-        { resolution.x, resolution.y }
-      };
+      } params = {{resolution.x, resolution.y}};
 
       currentCmdBuf.pushConstants(
         toyPipeline.getVkPipelineLayout(),
         vk::ShaderStageFlagBits::eCompute,
         0,
         sizeof(params),
-        &params
-      );
+        &params);
 
       etna::flush_barriers(currentCmdBuf); // To ensure parameters are loaded before computation
 
@@ -224,27 +215,31 @@ void App::drawFrame()
         vk::PipelineStageFlagBits2::eBlit,
         vk::AccessFlagBits2::eTransferRead,
         vk::ImageLayout::eTransferSrcOptimal,
-        vk::ImageAspectFlagBits::eColor
-      );
+        vk::ImageAspectFlagBits::eColor);
 
       etna::flush_barriers(currentCmdBuf);
 
       vk::ImageBlit region = {
-          .srcSubresource = vk::ImageSubresourceLayers{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
-          .srcOffsets     = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}}},
-          .dstSubresource = vk::ImageSubresourceLayers{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
-          .dstOffsets     = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}}},
+        .srcSubresource = vk::ImageSubresourceLayers{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .srcOffsets =
+          {{vk::Offset3D{0, 0, 0},
+            vk::Offset3D{
+              static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}}},
+        .dstSubresource = vk::ImageSubresourceLayers{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .dstOffsets =
+          {{vk::Offset3D{0, 0, 0},
+            vk::Offset3D{
+              static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}}},
       };
 
-        currentCmdBuf.blitImage(
+      currentCmdBuf.blitImage(
         output.get(),
         vk::ImageLayout::eTransferSrcOptimal,
         backbuffer,
         vk::ImageLayout::eTransferDstOptimal,
         1,
         &region,
-        vk::Filter::eLinear
-      );
+        vk::Filter::eLinear);
 
       // At the end of "rendering", we are required to change how the pixels of the
       // swpchain image are laid out in memory to something that is appropriate
