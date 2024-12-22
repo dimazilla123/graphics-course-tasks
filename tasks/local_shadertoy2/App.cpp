@@ -1,19 +1,27 @@
 #include "App.hpp"
+#include "etna/BlockingTransferHelper.hpp"
 #include "etna/DescriptorSet.hpp"
 #include "etna/GraphicsPipeline.hpp"
 #include "etna/Image.hpp"
 #include "etna/RenderTargetStates.hpp"
 #include "etna/Sampler.hpp"
 #include "etna/VertexInput.hpp"
+#include "wsi/MouseButton.hpp"
 
 #include <cstdint>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
+#include <exception>
+#include <fmt/base.h>
 #include <iostream>
+#include <iterator>
+#include <string_view>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 
 App::App()
@@ -83,9 +91,64 @@ App::App()
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
   commandManager = etna::get_context().createPerFrameCmdMgr();
+  torusTex = loadTexture(
+    GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/textures/material_8_metallicRoughness.png",
+    "torus"
+  );
   initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+}
+
+etna::Image App::loadTexture(const std::string_view &path, const std::string_view &tex_name)
+{
+  int x, y, channels;
+  auto imageData = static_cast<void*>(stbi_load(path.data(), &x, &y, &channels, 4));
+  if (imageData == nullptr) {
+    std::cerr << "Cannot load " << tex_name << ": " << stbi_failure_reason() << std::endl;
+    std::terminate();
+  }
+  etna::Image::CreateInfo info {
+    .extent = vk::Extent3D {
+      .width = static_cast<uint32_t>(x),
+      .height = static_cast<uint32_t>(y),
+      .depth = 1,
+    },
+    .name = tex_name,
+    .format = vk::Format::eR8G8B8A8Unorm,
+  };
+  etna::Image img = etna::get_context().createImage(info);
+
+  auto cmdBuf = commandManager->acquireNext();
+  ETNA_CHECK_VK_RESULT(cmdBuf.begin(vk::CommandBufferBeginInfo{}));
+  std::unique_ptr<etna::OneShotCmdMgr> oneTimeMgr = etna::get_context().createOneShotCmdMgr();
+  // На инициализацию нам тоже нужен командный буфер, чтобы загрузить картинку в
+  //   видеокарту.
+  size_t pictureSizeBytes = x * y * 4 /* color bytes per pixel */;
+  etna::BlockingTransferHelper({ static_cast<vk::DeviceSize>(pictureSizeBytes) }).uploadImage(
+    *oneTimeMgr,
+    img,
+    0,
+    0,
+    std::span<std::byte>(static_cast<std::byte*>(imageData), pictureSizeBytes)
+  );
+  stbi_image_free(imageData);
+  ETNA_CHECK_VK_RESULT(cmdBuf.end());
+
+  cmdBuf = commandManager->acquireNext();
+  ETNA_CHECK_VK_RESULT(cmdBuf.begin(vk::CommandBufferBeginInfo{}));
+  etna::set_state(
+    cmdBuf,
+    img.get(),
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    {vk::AccessFlagBits2::eShaderRead},
+    vk::ImageLayout::eGeneral,
+    vk::ImageAspectFlagBits::eColor
+  );
+  etna::flush_barriers(cmdBuf);
+  ETNA_CHECK_VK_RESULT(cmdBuf.end());
+
+  return img;
 }
 
 void App::initGen()
@@ -129,6 +192,8 @@ void App::initToy()
     LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
     LOCAL_SHADERTOY2_SHADERS_ROOT "toy.frag.spv",
   });
+
+
 
   toyPipeline = {};
   toyPipeline = pipelineManager.createGraphicsPipeline("toy", {

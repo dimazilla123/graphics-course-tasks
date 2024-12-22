@@ -24,6 +24,7 @@ private:
   void initGen();
   void initToy();
   void pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::GraphicsPipeline &pipeline, vk::ShaderStageFlagBits flags);
+  etna::Image loadTexture(const std::string_view &path, const std::string_view &tex_name);
   void prepareGen(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer, vk::ImageView& backbuffer_view);
   void prepareToy(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer, vk::ImageView& backbuffer_view);
 
@@ -41,7 +42,7 @@ private:
   etna::GraphicsPipeline genPipeline;
   etna::Sampler defaultSampler;
 
-  etna::Image woodTex;
+  etna::Image torusTex;
   etna::Image skyboxTex;
   etna::Image generatedTex;
 };
