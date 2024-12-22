@@ -8,6 +8,9 @@ struct UniformParams
   shader_uint iResolution_x;
   shader_uint iResolution_y;
   shader_float iTime;
+
+  shader_uint iMouse_x;
+  shader_uint iMouse_y;
 };
 
 

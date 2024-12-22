@@ -136,7 +136,7 @@ layout (location = 0) out vec4 fragColor;
 void main()
 {
   iResolution = vec2(params.iResolution_x, params.iResolution_y);
-  iMouse = vec2(0, 0);
+  iMouse = vec2(params.iMouse_x, params.iMouse_y);
 
   ivec2 iFragCoord = ivec2(gl_FragCoord.xy);
   mainImage(fragColor, iFragCoord);

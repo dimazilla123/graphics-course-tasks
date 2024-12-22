@@ -1,6 +1,7 @@
 #include "etna/DescriptorSet.hpp"
 #include "etna/Image.hpp"
 #include "etna/Profiling.hpp"
+#include "wsi/OsWindow.hpp"
 #include <cstring>
 #include <etna/RenderTargetStates.hpp>
 #include <etna/BlockingTransferHelper.hpp>
@@ -219,16 +220,31 @@ App::~App()
 
 void App::run()
 {
+  double lastTime = windowing.getTime();
   while (!osWindow->isBeingClosed())
   {
+    const double currTime = windowing.getTime();
+    const float diffTime = static_cast<float>(currTime - lastTime);
+    lastTime = currTime;
+
     windowing.poll();
 
-    drawFrame();
-  }
+    processInput(diffTime);
 
+    drawFrame();
+
+    FrameMark;
+  }
   // We need to wait for the GPU to execute the last frame before destroying
   // all resources and closing the application.
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+}
+
+void App::processInput(float)
+{
+  ZoneScoped;
+
+  updateUniformConstants(shader_uniform_params);
 }
 
 void App::updateUniformConstants(UniformParams &params)
@@ -236,7 +252,8 @@ void App::updateUniformConstants(UniformParams &params)
   static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
   std::chrono::time_point now = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
-  params = {resolution.x, resolution.y, duration.count() / 1000.f};
+  auto mouse = osWindow->mouse.freePos;
+  params = {resolution.x, resolution.y, duration.count() / 1000.f, static_cast<shader_uint>(mouse.x), static_cast<shader_uint>(mouse.y)};
 }
 
 void App::pushUniformConstants(
@@ -333,10 +350,7 @@ void App::drawFrame()
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
       ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
-      // TODO: Record your commands here!
-      UniformParams params = {};
-      updateUniformConstants(params);
-      std::memcpy(constants.data(), &params, sizeof(params));
+      std::memcpy(constants.data(), &shader_uniform_params, sizeof(shader_uniform_params));
       etna::flush_barriers(currentCmdBuf);
       auto genTexImg = generatedTex.get();
       auto genTexImgView = generatedTex.getView({});

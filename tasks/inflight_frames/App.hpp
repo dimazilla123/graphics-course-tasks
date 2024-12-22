@@ -22,6 +22,7 @@ public:
 
 private:
   void drawFrame();
+  void processInput(float dt);
 
   void initGen();
   void initToy();
@@ -55,4 +56,6 @@ private:
   etna::Image generatedTex;
 
   etna::Buffer constants;
+
+  UniformParams shader_uniform_params;
 };
