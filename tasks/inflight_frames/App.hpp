@@ -6,8 +6,9 @@
 #include <etna/GraphicsPipeline.hpp>
 #include <etna/Image.hpp>
 
-#include "etna/Sampler.hpp"
-#include "wsi/OsWindowingManager.hpp"
+#include <etna/Buffer.hpp>
+#include <etna/Sampler.hpp>
+#include <wsi/OsWindowingManager.hpp>
 
 
 class App
@@ -50,4 +51,6 @@ private:
   etna::Image torusTex;
   etna::Image skyboxTex;
   etna::Image generatedTex;
+
+  etna::Buffer constants;
 };

@@ -1,3 +1,6 @@
+#include "etna/DescriptorSet.hpp"
+#include "etna/Image.hpp"
+#include "etna/Profiling.hpp"
 #include <etna/RenderTargetStates.hpp>
 #include <etna/BlockingTransferHelper.hpp>
 #include <cstdint>
@@ -14,7 +17,18 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include "shaders/UniformParams.h"
 #include "App.hpp"
+
+struct UniformParams
+{
+  struct
+  {
+    uint32_t x;
+    uint32_t y;
+  } resolution;
+  float time;
+};
 
 
 App::App()
@@ -91,6 +105,14 @@ App::App()
   initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+
+  constants = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(UniformParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+    .name = "constants"
+  });
+  constants.map();
 }
 
 etna::Image App::loadTexture(const std::string_view& path, const std::string_view& tex_name)
@@ -227,15 +249,7 @@ void App::pushUniformConstants(
   std::chrono::time_point now = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
   (void)duration;
-  struct
-  {
-    struct
-    {
-      uint32_t x;
-      uint32_t y;
-    } resolution;
-    float time;
-  } params = {{resolution.x, resolution.y}, duration.count() / 1000.f};
+  UniformParams params = {{resolution.x, resolution.y}, duration.count() / 1000.f};
 
   current_cmd_buf.pushConstants(pipeline.getVkPipelineLayout(), flags, 0, sizeof(params), &params);
 }
@@ -273,18 +287,21 @@ void App::prepareToy(
     current_cmd_buf,
     {
       etna::Binding{
-        0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        0, constants.genBinding()
+      },
       etna::Binding{
-        1, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        1, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding{
-        2, skyboxTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        2, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{
+        3, skyboxTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
   vk::DescriptorSet vkSet = set.getVkSet();
   current_cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, toyPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
 
-  pushUniformConstants(current_cmd_buf, toyPipeline, vk::ShaderStageFlagBits::eFragment);
+  // pushUniformConstants(current_cmd_buf, toyPipeline, vk::ShaderStageFlagBits::eFragment);
 
   current_cmd_buf.draw(3, 1, 0, 0);
 }
@@ -308,6 +325,7 @@ void App::drawFrame()
 
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
+      ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
       // TODO: Record your commands here!
       auto genTexImg = generatedTex.get();
       auto genTexImgView = generatedTex.getView({});
@@ -327,6 +345,8 @@ void App::drawFrame()
         vk::ImageAspectFlagBits::eColor);
       // And of course flush the layout transition.
       etna::flush_barriers(currentCmdBuf);
+
+      ETNA_READ_BACK_GPU_PROFILING(currentCmdBuf);
     }
     ETNA_CHECK_VK_RESULT(currentCmdBuf.end());
 

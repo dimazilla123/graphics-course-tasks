@@ -5,7 +5,7 @@ add_executable(inflight_frames
 )
 
 target_link_libraries(inflight_frames
-  PRIVATE glfw etna glm::glm wsi gui scene)
+  PRIVATE glfw etna glm::glm wsi gui scene render_utils)
 
 target_add_shaders(inflight_frames
   shaders/toy.frag

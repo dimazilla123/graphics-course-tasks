@@ -1,16 +1,18 @@
 #version 430
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
 
 // layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(binding = 0) uniform sampler2D generatedTex;
-layout(binding = 1) uniform sampler2D torusTex;
-layout(binding = 2) uniform sampler2D skyboxTex;
+#include "UniformParams.h"
 
-layout(push_constant) uniform Parameters {
-  uint iResolution_x;
-  uint iResolution_y;
-  float iTime;
-} params;
+layout(binding = 1) uniform sampler2D generatedTex;
+layout(binding = 2) uniform sampler2D torusTex;
+layout(binding = 3) uniform sampler2D skyboxTex;
+
+layout(binding = 0) uniform Uniform {
+  UniformParams params;
+};
 
 vec2 iResolution;
 vec2 iMouse;
