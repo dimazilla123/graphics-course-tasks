@@ -3,8 +3,10 @@
 #include <etna/Window.hpp>
 #include <etna/PerFrameCmdMgr.hpp>
 #include <etna/ComputePipeline.hpp>
+#include <etna/GraphicsPipeline.hpp>
 #include <etna/Image.hpp>
 
+#include "etna/Sampler.hpp"
 #include "wsi/OsWindowingManager.hpp"
 
 
@@ -28,4 +30,9 @@ private:
 
   std::unique_ptr<etna::Window> vkWindow;
   std::unique_ptr<etna::PerFrameCmdMgr> commandManager;
+
+  etna::ComputePipeline toyPipeline;
+  etna::Sampler defaultSampler;
+
+  etna::Image output;
 };
