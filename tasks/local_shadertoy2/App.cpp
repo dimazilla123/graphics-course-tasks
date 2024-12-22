@@ -1,19 +1,10 @@
-#include "App.hpp"
-#include "etna/BlockingTransferHelper.hpp"
-#include "etna/DescriptorSet.hpp"
-#include "etna/GraphicsPipeline.hpp"
-#include "etna/Image.hpp"
-#include "etna/RenderTargetStates.hpp"
-#include "etna/Sampler.hpp"
-#include "etna/VertexInput.hpp"
-#include "wsi/MouseButton.hpp"
-
+#include <etna/RenderTargetStates.hpp>
+#include <etna/BlockingTransferHelper.hpp>
 #include <cstdint>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <exception>
-#include <fmt/base.h>
 #include <iostream>
 #include <iterator>
 #include <string_view>
@@ -22,6 +13,8 @@
 #include <vulkan/vulkan_structs.hpp>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+#include "App.hpp"
 
 
 App::App()
@@ -93,34 +86,32 @@ App::App()
   commandManager = etna::get_context().createPerFrameCmdMgr();
   torusTex = loadTexture(
     GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/textures/material_8_metallicRoughness.png",
-    "torus"
-  );
-  skyboxTex = loadTexture(
-    GRAPHICS_COURSE_RESOURCES_ROOT "/textures/skybox.png",
-    "skybox"
-  );
+    "torus");
+  skyboxTex = loadTexture(GRAPHICS_COURSE_RESOURCES_ROOT "/textures/skybox.png", "skybox");
   initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
 }
 
-etna::Image App::loadTexture(const std::string_view &path, const std::string_view &tex_name)
+etna::Image App::loadTexture(const std::string_view& path, const std::string_view& tex_name)
 {
   int x, y, channels;
   auto imageData = static_cast<void*>(stbi_load(path.data(), &x, &y, &channels, 4));
-  if (imageData == nullptr) {
+  if (imageData == nullptr)
+  {
     std::cerr << "Cannot load " << tex_name << ": " << stbi_failure_reason() << std::endl;
     std::terminate();
   }
-  etna::Image::CreateInfo info {
-    .extent = vk::Extent3D {
-      .width = static_cast<uint32_t>(x),
-      .height = static_cast<uint32_t>(y),
-      .depth = 1,
-    },
+  etna::Image::CreateInfo info{
+    .extent =
+      vk::Extent3D{
+        .width = static_cast<uint32_t>(x),
+        .height = static_cast<uint32_t>(y),
+        .depth = 1,
+      },
     .name = tex_name,
     .format = vk::Format::eR8G8B8A8Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst, 
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
   };
   etna::Image img = etna::get_context().createImage(info);
 
@@ -128,13 +119,13 @@ etna::Image App::loadTexture(const std::string_view &path, const std::string_vie
   ETNA_CHECK_VK_RESULT(cmdBuf.begin(vk::CommandBufferBeginInfo{}));
   std::unique_ptr<etna::OneShotCmdMgr> oneTimeMgr = etna::get_context().createOneShotCmdMgr();
   size_t pictureSizeBytes = x * y * 4;
-  etna::BlockingTransferHelper({ static_cast<vk::DeviceSize>(pictureSizeBytes) }).uploadImage(
-    *oneTimeMgr,
-    img,
-    0,
-    0,
-    std::span<std::byte>(static_cast<std::byte*>(imageData), pictureSizeBytes)
-  );
+  etna::BlockingTransferHelper({static_cast<vk::DeviceSize>(pictureSizeBytes)})
+    .uploadImage(
+      *oneTimeMgr,
+      img,
+      0,
+      0,
+      std::span<std::byte>(static_cast<std::byte*>(imageData), pictureSizeBytes));
   stbi_image_free(imageData);
   ETNA_CHECK_VK_RESULT(cmdBuf.end());
 
@@ -146,8 +137,7 @@ etna::Image App::loadTexture(const std::string_view &path, const std::string_vie
     vk::PipelineStageFlagBits2::eFragmentShader,
     {vk::AccessFlagBits2::eShaderRead},
     vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor
-  );
+    vk::ImageAspectFlagBits::eColor);
   etna::flush_barriers(cmdBuf);
   ETNA_CHECK_VK_RESULT(cmdBuf.end());
 
@@ -159,26 +149,27 @@ void App::initGen()
   auto& ctx = etna::get_context();
   auto& pipelineManager = ctx.getPipelineManager();
 
-  etna::create_program("gen", {
-    LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
-    LOCAL_SHADERTOY2_SHADERS_ROOT "gen.frag.spv",
-  });
+  etna::create_program(
+    "gen",
+    {
+      LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
+      LOCAL_SHADERTOY2_SHADERS_ROOT "gen.frag.spv",
+    });
 
-  genPipeline = pipelineManager.createGraphicsPipeline("gen", {
-    etna::GraphicsPipeline::CreateInfo{
-      .fragmentShaderOutput =
-      {
+  genPipeline = pipelineManager.createGraphicsPipeline(
+    "gen",
+    {etna::GraphicsPipeline::CreateInfo{
+      .fragmentShaderOutput = {
         .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
-      }
-    }
-  });
+      }}});
 
-  etna::Image::CreateInfo genTexInfo {
-    .extent = vk::Extent3D {
-      .width = 256,
-      .height = 256,
-      .depth = 1,
-    },
+  etna::Image::CreateInfo genTexInfo{
+    .extent =
+      vk::Extent3D{
+        .width = 256,
+        .height = 256,
+        .depth = 1,
+      },
     .name = "generatedTex",
     .format = vk::Format::eB8G8R8A8Srgb,
     .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment,
@@ -191,22 +182,21 @@ void App::initToy()
   auto& ctx = etna::get_context();
   auto& pipelineManager = ctx.getPipelineManager();
 
-  etna::create_program("toy", {
-    LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
-    LOCAL_SHADERTOY2_SHADERS_ROOT "toy.frag.spv",
-  });
-
+  etna::create_program(
+    "toy",
+    {
+      LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
+      LOCAL_SHADERTOY2_SHADERS_ROOT "toy.frag.spv",
+    });
 
 
   toyPipeline = {};
-  toyPipeline = pipelineManager.createGraphicsPipeline("toy", {
-    etna::GraphicsPipeline::CreateInfo{
+  toyPipeline = pipelineManager.createGraphicsPipeline(
+    "toy",
+    {etna::GraphicsPipeline::CreateInfo{
       .fragmentShaderOutput = {
         .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
-      }
-    }
-  });
-
+      }}});
 }
 
 App::~App()
@@ -228,7 +218,11 @@ void App::run()
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
 }
 
-void App::pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::GraphicsPipeline &pipeline, vk::ShaderStageFlagBits flags) {
+void App::pushUniformConstants(
+  vk::CommandBuffer& current_cmd_buf,
+  etna::GraphicsPipeline& pipeline,
+  vk::ShaderStageFlagBits flags)
+{
   static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
   std::chrono::time_point now = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
@@ -243,23 +237,14 @@ void App::pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::Graphic
     float time;
   } params = {{resolution.x, resolution.y}, duration.count() / 1000.f};
 
-  current_cmd_buf.pushConstants(
-    pipeline.getVkPipelineLayout(),
-    flags,
-    0,
-    sizeof(params),
-    &params);
-
+  current_cmd_buf.pushConstants(pipeline.getVkPipelineLayout(), flags, 0, sizeof(params), &params);
 }
 
-void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
+void App::prepareGen(
+  vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
   etna::RenderTargetState state{
-    current_cmd_buf,
-    {{}, {256, 256}},
-    {{backbuffer, backbuffer_view}},
-    {}
-  };
+    current_cmd_buf, {{}, {256, 256}}, {{backbuffer, backbuffer_view}}, {}};
   current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipeline());
 
   pushUniformConstants(current_cmd_buf, genPipeline, vk::ShaderStageFlagBits::eFragment);
@@ -273,16 +258,13 @@ void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     vk::ImageAspectFlagBits::eColor);
 }
 
-void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
+void App::prepareToy(
+  vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
   auto toyComputeInfo = etna::get_shader_program("toy");
 
   etna::RenderTargetState state{
-    current_cmd_buf,
-    {{}, {resolution.x, resolution.y}},
-    {{backbuffer, backbuffer_view}},
-    {}
-  };
+    current_cmd_buf, {{}, {resolution.x, resolution.y}}, {{backbuffer, backbuffer_view}}, {}};
 
   current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, toyPipeline.getVkPipeline());
 
@@ -290,23 +272,20 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     toyComputeInfo.getDescriptorLayoutId(0),
     current_cmd_buf,
     {
-      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding{1, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding{2, skyboxTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{
+        0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{
+        1, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{
+        2, skyboxTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
   vk::DescriptorSet vkSet = set.getVkSet();
   current_cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics,
-    toyPipeline.getVkPipelineLayout(),
-    0,
-    1,
-    &vkSet,
-    0,
-    nullptr);
+    vk::PipelineBindPoint::eGraphics, toyPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
 
   pushUniformConstants(current_cmd_buf, toyPipeline, vk::ShaderStageFlagBits::eFragment);
-  
+
   current_cmd_buf.draw(3, 1, 0, 0);
 }
 
