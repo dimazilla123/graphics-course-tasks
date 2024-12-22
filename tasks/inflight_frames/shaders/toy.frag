@@ -39,8 +39,8 @@ float sdf(in vec3 p)
     return torus(p, vec2(TORUS_R, TORUS_THICKNESS));
 }
 
-#define TRACE_ITER_LIM 100
-#define EPS 0.01
+#define TRACE_ITER_LIM 10000
+#define EPS 0.0001
 
 vec3 raytrace(vec3 from, vec3 dir, out bool hit)
 {

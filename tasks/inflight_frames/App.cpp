@@ -2,6 +2,7 @@
 #include "etna/Image.hpp"
 #include "etna/Profiling.hpp"
 #include "wsi/OsWindow.hpp"
+#include <chrono>
 #include <cstring>
 #include <etna/RenderTargetStates.hpp>
 #include <etna/BlockingTransferHelper.hpp>
@@ -13,6 +14,7 @@
 #include <iostream>
 #include <iterator>
 #include <string_view>
+#include <thread>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
@@ -53,7 +55,7 @@ App::App()
       .deviceExtensions = deviceExtensions,
       // Replace with an index if etna detects your preferred GPU incorrectly
       .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 1,
+      .numFramesInFlight = 3,
     });
   }
 
@@ -350,10 +352,15 @@ void App::drawFrame()
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
       ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
-      std::memcpy(constants.data(), &shader_uniform_params, sizeof(shader_uniform_params));
+
+      {
+        ZoneScoped;
+        std::memcpy(constants.data(), &shader_uniform_params, sizeof(shader_uniform_params));
+      }
       etna::flush_barriers(currentCmdBuf);
       auto genTexImg = generatedTex.get();
       auto genTexImgView = generatedTex.getView({});
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
       prepareGen(currentCmdBuf, genTexImg, genTexImgView);
       prepareToy(currentCmdBuf, backbuffer, backbufferView);
 
