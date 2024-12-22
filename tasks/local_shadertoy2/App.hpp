@@ -21,6 +21,9 @@ public:
 private:
   void drawFrame();
 
+  void initToy();
+  void prepareToy(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer);
+
 private:
   OsWindowingManager windowing;
   std::unique_ptr<OsWindow> osWindow;
