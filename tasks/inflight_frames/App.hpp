@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CyclicQueue.hpp"
 #include "shaders/UniformParams.h"
 #include <etna/Window.hpp>
 #include <etna/PerFrameCmdMgr.hpp>
@@ -55,7 +56,7 @@ private:
   etna::Image skyboxTex;
   etna::Image generatedTex;
 
-  etna::Buffer constants;
+  CyclicQueue<etna::Buffer> constants_cycle;
 
   UniformParams shader_uniform_params;
 };

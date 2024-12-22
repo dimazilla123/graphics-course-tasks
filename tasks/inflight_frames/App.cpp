@@ -1,3 +1,5 @@
+#include "CyclicQueue.hpp"
+#include "etna/Buffer.hpp"
 #include "etna/DescriptorSet.hpp"
 #include "etna/Image.hpp"
 #include "etna/Profiling.hpp"
@@ -13,6 +15,7 @@
 #include <exception>
 #include <iostream>
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vulkan/vulkan_enums.hpp>
@@ -31,6 +34,7 @@ App::App()
 {
   // First, we need to initialize Vulkan, which is not trivial because
   // extensions are required for just about anything.
+  static const int NUM_FRAMES_IN_FLIGHT = 3;
   {
     // GLFW tells us which extensions it needs to present frames to the OS window.
     // Actually rendering anything to a screen is optional in Vulkan, you can
@@ -55,7 +59,7 @@ App::App()
       .deviceExtensions = deviceExtensions,
       // Replace with an index if etna detects your preferred GPU incorrectly
       .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 3,
+      .numFramesInFlight = NUM_FRAMES_IN_FLIGHT,
     });
   }
 
@@ -91,13 +95,18 @@ App::App()
 
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
-  constants = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(UniformParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
-    .name = "constants"
-  });
-  constants.map();
+  constants_cycle = CyclicQueue<etna::Buffer>(NUM_FRAMES_IN_FLIGHT);
+  for (int i = 0; i < NUM_FRAMES_IN_FLIGHT; ++i) {
+
+    constants_cycle.get() = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+      .size = sizeof(UniformParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+      .name = "constants" + std::to_string(i),
+    });
+    constants_cycle.get().map();
+    constants_cycle.move();
+  }
   commandManager = etna::get_context().createPerFrameCmdMgr();
   torusTex = loadTexture(
     GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/textures/material_8_metallicRoughness.png",
@@ -283,7 +292,7 @@ void App::prepareGen(
     current_cmd_buf,
     {
       etna::Binding{
-        0, constants.genBinding()
+        0, constants_cycle.get().genBinding()
       }
     });
   vk::DescriptorSet vkSet = set.getVkSet();
@@ -315,7 +324,7 @@ void App::prepareToy(
     current_cmd_buf,
     {
       etna::Binding{
-        0, constants.genBinding()
+        0, constants_cycle.get().genBinding()
       },
       etna::Binding{
         1, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
@@ -355,7 +364,8 @@ void App::drawFrame()
 
       {
         ZoneScoped;
-        std::memcpy(constants.data(), &shader_uniform_params, sizeof(shader_uniform_params));
+        std::memcpy(constants_cycle.get().data(), &shader_uniform_params, sizeof(shader_uniform_params));
+        constants_cycle.move();
       }
       etna::flush_barriers(currentCmdBuf);
       auto genTexImg = generatedTex.get();
