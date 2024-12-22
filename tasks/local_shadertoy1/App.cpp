@@ -13,6 +13,11 @@
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
+template<typename T, typename U>
+constexpr T roundup(T a, U b)
+{
+  return (a + b - 1) / b;
+}
 
 App::App()
   : resolution{1280, 720}
@@ -98,7 +103,7 @@ App::App()
     output = ctx.createImage(etna::Image::CreateInfo{
       .extent = vk::Extent3D{resolution.x, resolution.y, 1},
       .name = "output",
-      .format = vk::Format::eR8G8B8A8Snorm,
+      .format = vk::Format::eR8G8B8A8Unorm,
       .imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage});
     std::cerr << "Image created\n";
 
@@ -207,7 +212,7 @@ void App::drawFrame()
 
       etna::flush_barriers(currentCmdBuf); // To ensure parameters are loaded before computation
 
-      currentCmdBuf.dispatch(resolution.x / 32, resolution.y / 32, 1);
+      currentCmdBuf.dispatch(roundup(resolution.x, 32u), roundup(resolution.y, 32u), 1);
 
       etna::set_state(
         currentCmdBuf,
