@@ -96,7 +96,8 @@ App::App()
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
   constants_cycle = CyclicQueue<etna::Buffer>(NUM_FRAMES_IN_FLIGHT);
-  for (int i = 0; i < NUM_FRAMES_IN_FLIGHT; ++i) {
+  for (int i = 0; i < NUM_FRAMES_IN_FLIGHT; ++i)
+  {
 
     constants_cycle.get() = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
       .size = sizeof(UniformParams),
@@ -115,7 +116,6 @@ App::App()
   initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
-
 }
 
 etna::Image App::loadTexture(const std::string_view& path, const std::string_view& tex_name)
@@ -258,13 +258,18 @@ void App::processInput(float)
   updateUniformConstants(shader_uniform_params);
 }
 
-void App::updateUniformConstants(UniformParams &params)
+void App::updateUniformConstants(UniformParams& params)
 {
   static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
   std::chrono::time_point now = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
   auto mouse = osWindow->mouse.freePos;
-  params = {resolution.x, resolution.y, duration.count() / 1000.f, static_cast<shader_uint>(mouse.x), static_cast<shader_uint>(mouse.y)};
+  params = {
+    resolution.x,
+    resolution.y,
+    duration.count() / 1000.f,
+    static_cast<shader_uint>(mouse.x),
+    static_cast<shader_uint>(mouse.y)};
 }
 
 void App::pushUniformConstants(
@@ -290,11 +295,7 @@ void App::prepareGen(
   auto set = etna::create_descriptor_set(
     genComputeInfo.getDescriptorLayoutId(0),
     current_cmd_buf,
-    {
-      etna::Binding{
-        0, constants_cycle.get().genBinding()
-      }
-    });
+    {etna::Binding{0, constants_cycle.get().genBinding()}});
   vk::DescriptorSet vkSet = set.getVkSet();
   current_cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
@@ -323,9 +324,7 @@ void App::prepareToy(
     toyComputeInfo.getDescriptorLayoutId(0),
     current_cmd_buf,
     {
-      etna::Binding{
-        0, constants_cycle.get().genBinding()
-      },
+      etna::Binding{0, constants_cycle.get().genBinding()},
       etna::Binding{
         1, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding{
@@ -364,7 +363,8 @@ void App::drawFrame()
 
       {
         ZoneScoped;
-        std::memcpy(constants_cycle.get().data(), &shader_uniform_params, sizeof(shader_uniform_params));
+        std::memcpy(
+          constants_cycle.get().data(), &shader_uniform_params, sizeof(shader_uniform_params));
         constants_cycle.move();
       }
       etna::flush_barriers(currentCmdBuf);

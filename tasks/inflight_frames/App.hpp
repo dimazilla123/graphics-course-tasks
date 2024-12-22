@@ -27,7 +27,7 @@ private:
 
   void initGen();
   void initToy();
-  void updateUniformConstants(UniformParams &params);
+  void updateUniformConstants(UniformParams& params);
   void pushUniformConstants(
     vk::CommandBuffer& current_cmd_buf,
     etna::GraphicsPipeline& pipeline,
