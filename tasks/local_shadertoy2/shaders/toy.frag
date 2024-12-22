@@ -3,6 +3,7 @@
 // layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(binding = 0) uniform sampler2D generatedTex;
+layout(binding = 1) uniform sampler2D torusTex;
 
 layout(push_constant) uniform Parameters {
   uint iResolution_x;
@@ -119,10 +120,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if (hit)
     {
         col = 
-            // (triponal(p, get_normal(p), iChannel1)
-            //+
-            // triponal(p, get_normal(p), generatedTex)) / 2.0
-            triponal(p, get_normal(p), generatedTex)
+            (triponal(p, get_normal(p), torusTex)
+            +
+            triponal(p, get_normal(p), generatedTex)) / 2.0
+            // triponal(p, get_normal(p), generatedTex)
             * phong_lighting(p, get_normal(p), dir);
     }
 

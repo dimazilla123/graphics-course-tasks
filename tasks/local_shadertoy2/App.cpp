@@ -116,6 +116,7 @@ etna::Image App::loadTexture(const std::string_view &path, const std::string_vie
     },
     .name = tex_name,
     .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst, 
   };
   etna::Image img = etna::get_context().createImage(info);
 
@@ -142,7 +143,7 @@ etna::Image App::loadTexture(const std::string_view &path, const std::string_vie
     img.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
     {vk::AccessFlagBits2::eShaderRead},
-    vk::ImageLayout::eGeneral,
+    vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor
   );
   etna::flush_barriers(cmdBuf);
@@ -251,16 +252,6 @@ void App::pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::Graphic
 
 void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
-  // auto genComputeInfo = etna::get_shader_program("gen");
-  etna::set_state(
-    current_cmd_buf,
-    generatedTex.get(),
-    vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-    {vk::AccessFlagBits2::eColorAttachmentWrite},
-    vk::ImageLayout::eColorAttachmentOptimal,
-    vk::ImageAspectFlagBits::eColor
-  );
-
   etna::RenderTargetState state{
     current_cmd_buf,
     {{}, {256, 256}},
@@ -268,22 +259,7 @@ void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     {}
   };
   current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipeline());
-  // auto set = etna::create_descriptor_set(
-  //   genComputeInfo.getDescriptorLayoutId(0),
-  //   current_cmd_buf,
-  //   {
-  //     {etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)}}
-  //   });
 
-  // vk::DescriptorSet vkSet = set.getVkSet();
-  // current_cmd_buf.bindDescriptorSets(
-  //   vk::PipelineBindPoint::eGraphics,
-  //   toyPipeline.getVkPipelineLayout(),
-  //   0,
-  //   1,
-  //   &vkSet,
-  //   0,
-  //   nullptr);
   pushUniformConstants(current_cmd_buf, genPipeline, vk::ShaderStageFlagBits::eFragment);
   current_cmd_buf.draw(3, 1, 0, 0);
   etna::set_state(
@@ -291,21 +267,13 @@ void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     generatedTex.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead,
-    vk::ImageLayout::eGeneral,
+    vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);
 }
 
 void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
   auto toyComputeInfo = etna::get_shader_program("toy");
-  etna::set_state(
-    current_cmd_buf,
-    backbuffer,
-    vk::PipelineStageFlagBits2::eFragmentShader,
-    {vk::AccessFlagBits2::eShaderRead},
-    vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor
-  );
 
   etna::RenderTargetState state{
     current_cmd_buf,
@@ -320,7 +288,8 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     toyComputeInfo.getDescriptorLayoutId(0),
     current_cmd_buf,
     {
-      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{1, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
   vk::DescriptorSet vkSet = set.getVkSet();
