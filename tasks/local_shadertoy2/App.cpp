@@ -95,6 +95,10 @@ App::App()
     GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/textures/material_8_metallicRoughness.png",
     "torus"
   );
+  skyboxTex = loadTexture(
+    GRAPHICS_COURSE_RESOURCES_ROOT "/textures/skybox.png",
+    "skybox"
+  );
   initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
@@ -123,9 +127,7 @@ etna::Image App::loadTexture(const std::string_view &path, const std::string_vie
   auto cmdBuf = commandManager->acquireNext();
   ETNA_CHECK_VK_RESULT(cmdBuf.begin(vk::CommandBufferBeginInfo{}));
   std::unique_ptr<etna::OneShotCmdMgr> oneTimeMgr = etna::get_context().createOneShotCmdMgr();
-  // На инициализацию нам тоже нужен командный буфер, чтобы загрузить картинку в
-  //   видеокарту.
-  size_t pictureSizeBytes = x * y * 4 /* color bytes per pixel */;
+  size_t pictureSizeBytes = x * y * 4;
   etna::BlockingTransferHelper({ static_cast<vk::DeviceSize>(pictureSizeBytes) }).uploadImage(
     *oneTimeMgr,
     img,
@@ -290,6 +292,7 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     {
       etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding{1, torusTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding{2, skyboxTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
   vk::DescriptorSet vkSet = set.getVkSet();

@@ -4,6 +4,7 @@
 
 layout(binding = 0) uniform sampler2D generatedTex;
 layout(binding = 1) uniform sampler2D torusTex;
+layout(binding = 2) uniform sampler2D skyboxTex;
 
 layout(push_constant) uniform Parameters {
   uint iResolution_x;
@@ -112,10 +113,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     camera_offset += vec3(pixel_offset(iMouse.xy), 0);
     vec3 dir = normalize(vec3(uv.x, uv.y, 1));
     
-    vec3 rd = normalize(vec3(uv, -0.5));
-    
     bool hit = false;
-    vec3 col = vec3(0.0, 0.0, 0.0); //texture(iChannel0, rd).rgb;
+    vec3 col = triponal(dir, dir, skyboxTex);
     vec3 p = raytrace(camera_offset, dir, hit);
     if (hit)
     {
