@@ -22,7 +22,7 @@ private:
   void drawFrame();
 
   void initToy();
-  void prepareToy(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer);
+  void prepareToy(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer, vk::ImageView& backbuffer_view);
 
 private:
   OsWindowingManager windowing;
@@ -34,8 +34,6 @@ private:
   std::unique_ptr<etna::Window> vkWindow;
   std::unique_ptr<etna::PerFrameCmdMgr> commandManager;
 
-  etna::ComputePipeline toyPipeline;
+  etna::GraphicsPipeline toyPipeline;
   etna::Sampler defaultSampler;
-
-  etna::Image output;
 };
