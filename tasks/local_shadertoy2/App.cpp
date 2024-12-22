@@ -83,8 +83,41 @@ App::App()
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
   commandManager = etna::get_context().createPerFrameCmdMgr();
+  initGen();
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+}
+
+void App::initGen()
+{
+  auto& ctx = etna::get_context();
+  auto& pipelineManager = ctx.getPipelineManager();
+
+  etna::create_program("gen", {
+    LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
+    LOCAL_SHADERTOY2_SHADERS_ROOT "gen.frag.spv",
+  });
+
+  genPipeline = pipelineManager.createGraphicsPipeline("gen", {
+    etna::GraphicsPipeline::CreateInfo{
+      .fragmentShaderOutput =
+      {
+        .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
+      }
+    }
+  });
+
+  etna::Image::CreateInfo genTexInfo {
+    .extent = vk::Extent3D {
+      .width = 256,
+      .height = 256,
+      .depth = 1,
+    },
+    .name = "generatedTex",
+    .format = vk::Format::eB8G8R8A8Srgb,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment,
+  };
+  generatedTex = etna::get_context().createImage(genTexInfo);
 }
 
 void App::initToy()
@@ -96,9 +129,7 @@ void App::initToy()
     LOCAL_SHADERTOY2_SHADERS_ROOT "rect.vert.spv",
     LOCAL_SHADERTOY2_SHADERS_ROOT "toy.frag.spv",
   });
-  etna::VertexShaderInputDescription rectangle{
 
-  };
   toyPipeline = {};
   toyPipeline = pipelineManager.createGraphicsPipeline("toy", {
     etna::GraphicsPipeline::CreateInfo{
@@ -129,9 +160,87 @@ void App::run()
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
 }
 
+void App::pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::GraphicsPipeline &pipeline, vk::ShaderStageFlagBits flags) {
+  static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
+  std::chrono::time_point now = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
+  (void)duration;
+  struct
+  {
+    struct
+    {
+      uint32_t x;
+      uint32_t y;
+    } resolution;
+    float time;
+  } params = {{resolution.x, resolution.y}, duration.count() / 1000.f};
+
+  current_cmd_buf.pushConstants(
+    pipeline.getVkPipelineLayout(),
+    flags,
+    0,
+    sizeof(params),
+    &params);
+
+}
+
+void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
+{
+  // auto genComputeInfo = etna::get_shader_program("gen");
+  etna::set_state(
+    current_cmd_buf,
+    generatedTex.get(),
+    vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    {vk::AccessFlagBits2::eColorAttachmentWrite},
+    vk::ImageLayout::eColorAttachmentOptimal,
+    vk::ImageAspectFlagBits::eColor
+  );
+
+  etna::RenderTargetState state{
+    current_cmd_buf,
+    {{}, {256, 256}},
+    {{backbuffer, backbuffer_view}},
+    {}
+  };
+  current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipeline());
+  // auto set = etna::create_descriptor_set(
+  //   genComputeInfo.getDescriptorLayoutId(0),
+  //   current_cmd_buf,
+  //   {
+  //     {etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)}}
+  //   });
+
+  // vk::DescriptorSet vkSet = set.getVkSet();
+  // current_cmd_buf.bindDescriptorSets(
+  //   vk::PipelineBindPoint::eGraphics,
+  //   toyPipeline.getVkPipelineLayout(),
+  //   0,
+  //   1,
+  //   &vkSet,
+  //   0,
+  //   nullptr);
+  pushUniformConstants(current_cmd_buf, genPipeline, vk::ShaderStageFlagBits::eFragment);
+  current_cmd_buf.draw(3, 1, 0, 0);
+  etna::set_state(
+    current_cmd_buf,
+    generatedTex.get(),
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead,
+    vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+}
+
 void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
-  // auto toyComputeInfo = etna::get_shader_program("toy");
+  auto toyComputeInfo = etna::get_shader_program("toy");
+  etna::set_state(
+    current_cmd_buf,
+    backbuffer,
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    {vk::AccessFlagBits2::eShaderRead},
+    vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor
+  );
 
   etna::RenderTargetState state{
     current_cmd_buf,
@@ -142,36 +251,25 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
 
   current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, toyPipeline.getVkPipeline());
 
-  // auto set = etna::create_descriptor_set(
-  //   toyComputeInfo.getDescriptorLayoutId(0),
-  //   currentCmdBuf, {});
-
-  // vk::DescriptorSet vkSet = set.getVkSet();
-  // currentCmdBuf.bindDescriptorSets(
-  //   vk::PipelineBindPoint::eGraphics,
-  //   toyPipeline.getVkPipelineLayout(),
-  //   0,
-  //   1,
-  //   &vkSet,
-  //   0,
-  //   nullptr);
-
-  struct
-  {
-    struct
+  auto set = etna::create_descriptor_set(
+    toyComputeInfo.getDescriptorLayoutId(0),
+    current_cmd_buf,
     {
-      uint32_t x;
-      uint32_t y;
-    } resolution;
-  } params = {{resolution.x, resolution.y}};
+      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eReadOnlyOptimal)},
+    });
 
-  current_cmd_buf.pushConstants(
+  vk::DescriptorSet vkSet = set.getVkSet();
+  current_cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eGraphics,
     toyPipeline.getVkPipelineLayout(),
-    vk::ShaderStageFlagBits::eFragment,
     0,
-    sizeof(params),
-    &params);
+    1,
+    &vkSet,
+    0,
+    nullptr);
 
+  pushUniformConstants(current_cmd_buf, toyPipeline, vk::ShaderStageFlagBits::eFragment);
+  
   current_cmd_buf.draw(3, 1, 0, 0);
 }
 
@@ -195,6 +293,9 @@ void App::drawFrame()
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
       // TODO: Record your commands here!
+      auto genTexImg = generatedTex.get();
+      auto genTexImgView = generatedTex.getView({});
+      prepareGen(currentCmdBuf, genTexImg, genTexImgView);
       prepareToy(currentCmdBuf, backbuffer, backbufferView);
 
       // At the end of "rendering", we are required to change how the pixels of the

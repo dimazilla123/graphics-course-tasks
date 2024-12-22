@@ -21,7 +21,10 @@ public:
 private:
   void drawFrame();
 
+  void initGen();
   void initToy();
+  void pushUniformConstants(vk::CommandBuffer& current_cmd_buf, etna::GraphicsPipeline &pipeline, vk::ShaderStageFlagBits flags);
+  void prepareGen(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer, vk::ImageView& backbuffer_view);
   void prepareToy(vk::CommandBuffer& cmd_buffer, vk::Image& backbuffer, vk::ImageView& backbuffer_view);
 
 private:
@@ -35,5 +38,10 @@ private:
   std::unique_ptr<etna::PerFrameCmdMgr> commandManager;
 
   etna::GraphicsPipeline toyPipeline;
+  etna::GraphicsPipeline genPipeline;
   etna::Sampler defaultSampler;
+
+  etna::Image woodTex;
+  etna::Image skyboxTex;
+  etna::Image generatedTex;
 };

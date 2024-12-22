@@ -2,9 +2,12 @@
 
 // layout(local_size_x = 32, local_size_y = 32) in;
 
+layout(binding = 0) uniform sampler2D generatedTex;
+
 layout(push_constant) uniform Parameters {
   uint iResolution_x;
   uint iResolution_y;
+  float iTime;
 } params;
 
 vec2 iResolution;
@@ -23,10 +26,13 @@ float torus ( in vec3 pos, in vec2 t )
     return length ( q ) - t.y;
 }
 
+float TORUS_R = 1.0;
+float TORUS_THICKNESS = 0.3;
+
 float sdf(in vec3 p)
 {
     // return sphere_sdf(p, 1.0);
-    return torus(p, vec2(1.0, 0.3));
+    return torus(p, vec2(TORUS_R, TORUS_THICKNESS));
 }
 
 #define TRACE_ITER_LIM 100
@@ -69,7 +75,7 @@ vec2 pixel_offset(vec2 coord)
 
 #define AMBIENT_LIGHT 0.3
 vec3 light_pos = vec3(0.0, 0.0, -4.0);
-vec3 diffuse_color = vec3(1.0, 0.5, 0.0);
+vec3 diffuse_color = vec3(1.0, 1.0, 1.0);
 
 vec3 phong_lighting(vec3 p, vec3 normal, vec3 dir) {
     vec3 light_dir = normalize(light_pos - p);
@@ -86,19 +92,38 @@ vec3 phong_lighting(vec3 p, vec3 normal, vec3 dir) {
     return (ambient + diffuse + specular);
 }
 
-void mainImage(out vec4 fragColor, in vec2 fragCoord )
+vec3 triponal(vec3 p, vec3 normal, sampler2D tex)
+{
+    vec3 abs_normal = abs(normal);
+    abs_normal /= (abs_normal.x + abs_normal.y + abs_normal.z);
+
+    vec3 x_projection = texture(tex, p.yz * 0.5).rgb * abs_normal.x;
+    vec3 y_projection = texture(tex, p.xz * 0.5).rgb * abs_normal.y;
+    vec3 z_projection = texture(tex, p.xy * 0.5).rgb * abs_normal.z;
+
+    return x_projection + y_projection + z_projection;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = pixel_offset(fragCoord);
     vec3 camera_offset = vec3(0, 0, -4);
     camera_offset += vec3(pixel_offset(iMouse.xy), 0);
     vec3 dir = normalize(vec3(uv.x, uv.y, 1));
     
+    vec3 rd = normalize(vec3(uv, -0.5));
+    
     bool hit = false;
-    vec3 col = vec3(0, 0, 0);
+    vec3 col = vec3(0.0, 0.0, 0.0); //texture(iChannel0, rd).rgb;
     vec3 p = raytrace(camera_offset, dir, hit);
     if (hit)
     {
-        col = phong_lighting(p, get_normal(p), dir);
+        col = 
+            // (triponal(p, get_normal(p), iChannel1)
+            //+
+            // triponal(p, get_normal(p), generatedTex)) / 2.0
+            triponal(p, get_normal(p), generatedTex)
+            * phong_lighting(p, get_normal(p), dir);
     }
 
     fragColor = vec4(col,1.0);
