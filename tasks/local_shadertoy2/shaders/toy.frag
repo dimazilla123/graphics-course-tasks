@@ -1,8 +1,6 @@
 #version 430
 
-layout(local_size_x = 32, local_size_y = 32) in;
-
-layout(binding = 0, rgba8) uniform image2D resultImage;
+// layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(push_constant) uniform Parameters {
   uint iResolution_x;
@@ -88,7 +86,7 @@ vec3 phong_lighting(vec3 p, vec3 normal, vec3 dir) {
     return (ambient + diffuse + specular);
 }
 
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void mainImage(out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = pixel_offset(fragCoord);
     vec3 camera_offset = vec3(0, 0, -4);
@@ -106,16 +104,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     fragColor = vec4(col,1.0);
 }
 
+layout (location = 0) out vec4 fragColor;
+
 void main()
 {
   iResolution = vec2(params.iResolution_x, params.iResolution_y);
   iMouse = vec2(0, 0);
 
-  vec4 fragColor;
-  vec2  fragCoord  = vec2(gl_GlobalInvocationID.xy);
-  ivec2 iFragCoord = ivec2(gl_GlobalInvocationID.xy);
-  mainImage(fragColor, fragCoord);
+  ivec2 iFragCoord = ivec2(gl_FragCoord.xy);
+  mainImage(fragColor, iFragCoord);
 
-  if (iFragCoord.x < 1280 && iFragCoord.y < 720)
-    imageStore(resultImage, iFragCoord, fragColor);
+  // if (iFragCoord.x < 1280 && iFragCoord.y < 720)
+  //  imageStore(resultImage, iFragCoord, fragColor);
 }

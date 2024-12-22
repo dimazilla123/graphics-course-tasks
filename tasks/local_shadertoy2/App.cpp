@@ -172,7 +172,7 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     sizeof(params),
     &params);
 
-  current_cmd_buf.draw(1, 1, 0, 0);
+  current_cmd_buf.draw(3, 1, 0, 0);
 }
 
 void App::drawFrame()
