@@ -1,5 +1,6 @@
 #pragma once
 
+#include "shaders/UniformParams.h"
 #include <etna/Window.hpp>
 #include <etna/PerFrameCmdMgr.hpp>
 #include <etna/ComputePipeline.hpp>
@@ -24,6 +25,7 @@ private:
 
   void initGen();
   void initToy();
+  void updateUniformConstants(UniformParams &params);
   void pushUniformConstants(
     vk::CommandBuffer& current_cmd_buf,
     etna::GraphicsPipeline& pipeline,

@@ -5,12 +5,9 @@
 
 struct UniformParams
 {
-  struct
-  {
-    shader_uint x;
-    shader_uint y;
-  } resolution;
-  shader_float time;
+  shader_uint iResolution_x;
+  shader_uint iResolution_y;
+  shader_float iTime;
 };
 
 

@@ -10,7 +10,7 @@ layout(binding = 1) uniform sampler2D generatedTex;
 layout(binding = 2) uniform sampler2D torusTex;
 layout(binding = 3) uniform sampler2D skyboxTex;
 
-layout(binding = 0) uniform Uniform {
+layout(binding = 0, set = 0) uniform Uniform {
   UniformParams params;
 };
 

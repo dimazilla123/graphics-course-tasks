@@ -1,6 +1,7 @@
 #include "etna/DescriptorSet.hpp"
 #include "etna/Image.hpp"
 #include "etna/Profiling.hpp"
+#include <cstring>
 #include <etna/RenderTargetStates.hpp>
 #include <etna/BlockingTransferHelper.hpp>
 #include <cstdint>
@@ -19,16 +20,6 @@
 
 #include "shaders/UniformParams.h"
 #include "App.hpp"
-
-struct UniformParams
-{
-  struct
-  {
-    uint32_t x;
-    uint32_t y;
-  } resolution;
-  float time;
-};
 
 
 App::App()
@@ -97,6 +88,13 @@ App::App()
 
   // Next, we need a magical Etna helper to send commands to the GPU.
   // How it is actually performed is not trivial, but we can skip this for now.
+  constants = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(UniformParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "constants"
+  });
+  constants.map();
   commandManager = etna::get_context().createPerFrameCmdMgr();
   torusTex = loadTexture(
     GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/textures/material_8_metallicRoughness.png",
@@ -106,13 +104,6 @@ App::App()
   initToy();
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
 
-  constants = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(UniformParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
-    .name = "constants"
-  });
-  constants.map();
 }
 
 etna::Image App::loadTexture(const std::string_view& path, const std::string_view& tex_name)
@@ -240,16 +231,21 @@ void App::run()
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
 }
 
+void App::updateUniformConstants(UniformParams &params)
+{
+  static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
+  std::chrono::time_point now = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
+  params = {resolution.x, resolution.y, duration.count() / 1000.f};
+}
+
 void App::pushUniformConstants(
   vk::CommandBuffer& current_cmd_buf,
   etna::GraphicsPipeline& pipeline,
   vk::ShaderStageFlagBits flags)
 {
-  static const std::chrono::time_point INITIAL_TIME = std::chrono::high_resolution_clock::now();
-  std::chrono::time_point now = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(INITIAL_TIME - now);
-  (void)duration;
-  UniformParams params = {{resolution.x, resolution.y}, duration.count() / 1000.f};
+  UniformParams params = {};
+  updateUniformConstants(params);
 
   current_cmd_buf.pushConstants(pipeline.getVkPipelineLayout(), flags, 0, sizeof(params), &params);
 }
@@ -257,11 +253,24 @@ void App::pushUniformConstants(
 void App::prepareGen(
   vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, vk::ImageView& backbuffer_view)
 {
+  auto genComputeInfo = etna::get_shader_program("gen");
+
   etna::RenderTargetState state{
     current_cmd_buf, {{}, {256, 256}}, {{backbuffer, backbuffer_view}}, {}};
   current_cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipeline());
 
-  pushUniformConstants(current_cmd_buf, genPipeline, vk::ShaderStageFlagBits::eFragment);
+  auto set = etna::create_descriptor_set(
+    genComputeInfo.getDescriptorLayoutId(0),
+    current_cmd_buf,
+    {
+      etna::Binding{
+        0, constants.genBinding()
+      }
+    });
+  vk::DescriptorSet vkSet = set.getVkSet();
+  current_cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eGraphics, genPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
+
   current_cmd_buf.draw(3, 1, 0, 0);
   etna::set_state(
     current_cmd_buf,
@@ -301,8 +310,6 @@ void App::prepareToy(
   current_cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, toyPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
 
-  // pushUniformConstants(current_cmd_buf, toyPipeline, vk::ShaderStageFlagBits::eFragment);
-
   current_cmd_buf.draw(3, 1, 0, 0);
 }
 
@@ -327,6 +334,10 @@ void App::drawFrame()
     {
       ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
       // TODO: Record your commands here!
+      UniformParams params = {};
+      updateUniformConstants(params);
+      std::memcpy(constants.data(), &params, sizeof(params));
+      etna::flush_barriers(currentCmdBuf);
       auto genTexImg = generatedTex.get();
       auto genTexImgView = generatedTex.getView({});
       prepareGen(currentCmdBuf, genTexImg, genTexImgView);
