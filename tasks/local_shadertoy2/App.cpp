@@ -226,7 +226,7 @@ void App::prepareGen(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     generatedTex.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead,
-    vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
 }
 
@@ -238,7 +238,7 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     backbuffer,
     vk::PipelineStageFlagBits2::eFragmentShader,
     {vk::AccessFlagBits2::eShaderRead},
-    vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor
   );
 
@@ -255,7 +255,7 @@ void App::prepareToy(vk::CommandBuffer& current_cmd_buf, vk::Image& backbuffer, 
     toyComputeInfo.getDescriptorLayoutId(0),
     current_cmd_buf,
     {
-      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eReadOnlyOptimal)},
+      etna::Binding{0, generatedTex.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
     });
 
   vk::DescriptorSet vkSet = set.getVkSet();
